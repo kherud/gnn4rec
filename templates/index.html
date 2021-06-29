@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Graph Neural Networks for Coauthor Recommendation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+    <!--
+     ___            ___
+    /   \          /   \
+    \_   \        /  __/
+     _\   \      /  /__
+     \___  \____/   __/
+         \_       _/
+           | @ @  \_
+           |
+         _/     /\
+        /o)  (o/\ \_
+        \_____/ /
+          \____/ Howdy
+    -->
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        header {
+            margin-top: 1vh;
+            text-align: center;
+            margin-bottom: 1vh;
+        }
+
+        #content-container {
+            align-self: center;
+            min-width: 768px;
+            max-width: 1280px;
+        }
+
+        #author-results {
+            margin-top: 1em;
+            column-count: 4;
+        }
+
+        #author-results li {
+            cursor: pointer;
+        }
+
+        #results-container {
+            display: none;
+            margin-top: 1vh;
+            text-align: center;
+        }
+
+        #spinner {
+            display: none;
+            margin-top: 2.5vh;
+        }
+
+        #error-message {
+            display: none;
+            padding: .5rem 1rem;
+        }
+
+        #copyright {
+            position: fixed;
+            bottom: 1vh;
+            right: 2vh;
+        }
+
+        hr {
+            margin-top: .5rem;
+            margin-bottom: .5rem;
+        }
+
+        .btn-sm {
+            padding: 0 .2rem;
+        }
+
+        #description-text {
+            max-width: 768px;
+            text-align: center;
+        }
+
+        a {
+            color: #212529;
+            text-underline: none;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Graph Neural Networks</h1>
+    <h2>By the Example of Collaboration Networks</h2>
+</header>
+<form id="content-container" onsubmit="return submitForm()">
+    <p id="description-text">This application serves a Graph Neural Network trained to provide recommendations for scientific collaborations. The basis is a corpus with 265,974 papers, 221,483 unique authors, and 1,614,180 edges between authors. The authors can be selected via search, and predictions can be made for all of them. It is also necessary to specify what is being collaborated on. During training, this was a combination of title and abstract of a paper. There are some examples, however, any text can be entered.</p>
+    <div class="mb-3">
+        <div class="alert alert-danger" role="alert" id="error-message"></div>
+        <label for="author-input" class="form-label"><span class="fw-bold">Author:</span> For whom to make a
+            recommendation?</label>
+        <input type="text" class="needs-validation form-control" id="author-input" onkeyup="searchAuthors()" required>
+        <ul class="list-unstyled card-columns" id="author-results">
+            <li onclick="setAuthor(this.innerText)">Andreas Hotho</li>
+            <li onclick="setAuthor(this.innerText)">Geoffrey E. Hinton</li>
+            <li onclick="setAuthor(this.innerText)">Andrew Y. Ng</li>
+            <li onclick="setAuthor(this.innerText)">Jitendra Malik</li>
+            <li onclick="setAuthor(this.innerText)">Michael I. Jordan</li>
+            <li onclick="setAuthor(this.innerText)">Andrew Zisserman</li>
+            <li onclick="setAuthor(this.innerText)">Yoshua Bengio</li>
+            <li onclick="setAuthor(this.innerText)">Ilya Sutskever</li>
+            <li onclick="setAuthor(this.innerText)">David G. Lowe</li>
+            <li onclick="setAuthor(this.innerText)">Cordelia Schmid</li>
+            <li onclick="setAuthor(this.innerText)">Luc Van Gool</li>
+            <li onclick="setAuthor(this.innerText)">Andrew McCallum</li>
+            <li onclick="setAuthor(this.innerText)">Trevor Darrell</li>
+            <li onclick="setAuthor(this.innerText)">Christopher D. Manning</li>
+            <li onclick="setAuthor(this.innerText)">Kaiming He</li>
+            <li onclick="setAuthor(this.innerText)">Jürgen Schmidhuber</li>
+        </ul>
+    </div>
+    <div class="mb-3">
+        <label for="text-input" class="form-label"><span class="fw-bold">Query:</span> What is the paper about?</label>
+        <div class="mb-1" id="example-button-container">
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 1</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 2</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 3</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 4</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 5</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 6</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 7</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 8</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 9</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm">Example 10</button>
+        </div>
+        <textarea class="form-control" id="text-input" type="text" rows="8" required></textarea>
+    </div>
+    <div class="text-center">
+        <button class="btn btn-primary" id="submit-button">Submit</button>
+        <br>
+        <div id="spinner">
+            <div class="spinner-border text-primary" role="status"></div><br>
+            <p>This may take a few seconds...</p>
+            <!--        <span class="sr-only">Loading...</span>-->
+        </div>
+    </div>
+    <div>
+        <div class="container" id="results-container">
+            <h4>Results</h4>
+            <div class="row text-center mb-2" id="results-message">
+                <span>Out of <span class="fst-italic" id="num-nodes-text"></span> nodes from the
+                    <span class="fst-italic"
+                          id="num-hops-text"></span>-hop neighborhood, the following were selected.</span>
+            </div>
+            <div class="row">
+                <div class="col-sm">
+                    <span class="fst-italic">Top adjacent Authors</span>
+                    <hr>
+                    <ul class="list-unstyled card-columns" id="top-adjacent"></ul>
+                </div>
+                <div class="col-sm">
+                    <span class="fst-italic">Top non-adjacent Authors</span>
+                    <hr>
+                    <ul class="list-unstyled card-columns" id="top-non-adjacent"></ul>
+                </div>
+                <div class="col-sm">
+                    <span class="fst-italic">Top Keywords</span>
+                    <hr>
+                    <ul class="list-unstyled card-columns" id="top-keywords"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<div id="copyright">
+    &copy; Konstantin Herud
+</div>
+
+<script>
+    const textExamples = [
+        "Information Retrieval in Folksonomies: Search and Ranking.\n\nSocial bookmark tools are rapidly emerging on the Web. In such systems users are setting up lightweight conceptual structures called folksonomies. The reason for their immediate success is the fact that no specific skills are needed for participating. At the moment, however, the information retrieval support is limited. We present a formal model and a new search algorithm for folksonomies, calledFolkRank, that exploits the structure of the folksonomy. The proposed algorithm is also applied to find communities within the folksonomy and is used to structure search results. All findings are demonstrated on a large scale dataset.",
+        "Towards Semantic Web Mining.\n\nSemantic Web Mining aims at combining the two fast-developing research areas Semantic Web and Web Mining. The idea is to improve, on the one hand, the results of Web Mining by exploiting the new semantic structures in the Web; and to make use of Web Mining, on the other hand, for building up the Semantic Web. This paper gives an overview of where the two areas meet today, and sketches ways of how a closer integration could be pro table.",
+        "ImageNet Classification with Deep Convolutional Neural Networks.\n\nWe trained a large, deep convolutional neural network to classify the 1.2 million high-resolution images in the ImageNet LSVRC-2010 contest into the 1000 different classes. On the test data, we achieved top-1 and top-5 error rates of 37.5% and 17.0%, respectively, which is considerably better than the previous state-of-the-art. The neural network, which has 60 million parameters and 650,000 neurons, consists of five convolutional layers, some of which are followed by max-pooling layers, and three fully connected layers with a final 1000-way softmax. To make training faster, we used non-saturating neurons and a very efficient GPU implementation of the convolution operation. To reduce overfitting in the fully connected layers we employed a recently developed regularization method called \"dropout\" that proved to be very effective. We also entered a variant of this model in the ILSVRC-2012 competition and achieved a winning top-5 test error rate of 15.3%, compared to 26.2% achieved by the second-best entry.",
+        "Attention Is All You Need.\n\nThe dominant sequence transduction models are based on complex recurrent or convolutional neural networks in an encoder-decoder configuration. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.8 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature. We show that the Transformer generalizes well to other tasks by applying it successfully to English constituency parsing both with large and limited training data.",
+        "Random Forests.\n\nRandom forests are a combination of tree predictors such that each tree depends on the values of a random vector sampled independently and with the same distribution for all trees in the forest. The generalization error for forests converges a.s. to a limit as the number of trees in the forest becomes large. The generalization error of a forest of tree classifiers depends on the strength of the individual trees in the forest and the correlation between them. Using a random selection of features to split each node yields error rates that compare favorably to Adaboost (Y. Freund & R. Schapire, Machine Learning: Proceedings of the Thirteenth International conference, ***, 148–156), but are more robust with respect to noise. Internal estimates monitor error, strength, and correlation and these are used to show the response to increasing the number of features used in the splitting. Internal estimates are also used to measure variable importance. These ideas are also applicable to regression.",
+        "Latent Dirichlet Allocation.\n\nWe propose a generative model for text and other collections of discrete data that generalizes or improves on several previous models including naive Bayes/unigram, mixture of unigrams [6], and Hofmann's aspect model , also known as probabilistic latent semantic indexing (pLSI) [3]. In the context of text modeling, our model posits that each document is generated as a mixture of topics, where the continuous-valued mixture proportions are distributed as a latent Dirichlet random variable. Inference and learning are carried out efficiently via variational algorithms. We present empirical results on applications of this model to problems in text modeling, collaborative filtering, and text classification.",
+        "Long Short-Term Memory.\n\nLearning to store information over extended time intervals by recurrent backpropagation takes a very long time, mostly because of insufficient, decaying error backflow. We briefly review Hochreiter's (1991) analysis of this problem, then address it by introducing a novel, efficient, gradient based method called long short-term memory (LSTM). Truncating the gradient where this does not do harm, LSTM can learn to bridge minimal time lags in excess of 1000 discrete-time steps by enforcing constant error flow through constant error carousels within special units. Multiplicative gate units learn to open and close access to the constant error flow. LSTM is local in space and time; its computational complexity per time step and weight is O. 1. Our experiments with artificial data involve local, distributed, real-valued, and noisy pattern representations. In comparisons with real-time recurrent learning, back propagation through time, recurrent cascade correlation, Elman nets, and neural sequence chunking, LSTM leads to many more successful runs, and learns much faster. LSTM also solves complex, artificial long-time-lag tasks that have never been solved by previous recurrent network algorithms.",
+        "Conditional Random Fields:\n\nProbabilistic Models for Segmenting and Labeling Sequence Data. We presentconditional random fields, a framework for building probabilistic models to segment and label sequence data. Conditional random fields offer several advantages over hidden Markov models and stochastic grammars for such tasks, including the ability to relax strong independence assumptions made in those models. Conditional random fields also avoid a fundamental limitation of maximum entropy Markov models (MEMMs) and other discriminative Markov models based on directed graphical models, which can be biased towards states with few successor states. We present iterative parameter estimation algorithms for conditional random fields and compare the performance of the resulting models to HMMs and MEMMs on synthetic and natural-language data.",
+        "Distributed Representations of Words and Phrases and their Compositionality.\n\nThe recently introduced continuous Skip-gram model is an ef fici nt method for learning high-quality distributed vector representation s that capture a large number of precise syntactic and semantic word relationships. I n this paper we present several extensions that improve both the quality of the vect ors and the training speed. By subsampling of the frequent words we obtain signifi ca t speedup and also learn more regular word representations. We also descr ib a simple alternative to the hierarchical softmax called negative sampling. An inherent limitation of word representations is their ind ifference to word order and their inability to represent idiomatic phrases. For exa mple, the meanings of “Canada” and “Air” cannot be easily combined to obtain “Air C anada”. Motivated by this example, we present a simple method for finding phrase s in t xt, and show that learning good vector representations for millions of p hrases is possible.",
+        "A Tutorial on Support Vector Machines for Pattern Recognition.\n\nThe tutorial starts with an overview of the concepts of VC dimension and structural risk minimization. We then describe linear Support Vector Machines (SVMs) for separable and non-separable data, working through a non-trivial example in detail. We describe a mechanical analogy, and discuss when SVM solutions are unique and when they are global. We describe how support vector training can be practically implemented, and discuss in detail the kernel mapping technique which is used to construct SVM solutions which are nonlinear in the data. We show how Support Vector machines can have very large (even infinite) VC dimension by computing the VC dimension for homogeneous polynomial and Gaussian radial basis function kernels. While very high VC dimension would normally bode ill for generalization performance, and while at present there exists no theory which shows that good generalization performance is guaranteed for SVMs, there are several arguments which support the observed high accuracy of SVMs, which we review. Results of some experiments which were inspired by these arguments are also presented. We give numerous examples and proofs of most of the key theorems. There is new material, and I hope that the reader will find that even old material is cast in a fresh light."
+    ];
+
+    const authorInput = document.getElementById("author-input");
+    const textInput = document.getElementById("text-input");
+    textInput.value = textExamples[0];
+    textInput.style.height = textInput.scrollHeight + 5 + "px";
+    const searchResults = document.getElementById("author-results");
+    const defaultSearchResults = searchResults.innerHTML;
+    const spinner = document.getElementById("spinner");
+    const errorMessage = document.getElementById("error-message");
+    const adjacentList = document.getElementById("top-adjacent");
+    const nonAdjacentList = document.getElementById("top-non-adjacent");
+    const keywordList = document.getElementById("top-keywords");
+    const resultsContainer = document.getElementById("results-container");
+    const numNodesText = document.getElementById("num-nodes-text");
+    const numHopsText = document.getElementById("num-hops-text");
+    const submitButton = document.getElementById("submit-button")
+    const t_timeout = 1000;
+    let authorSearchTimeout = false;
+
+    document.querySelectorAll("#example-button-container button").forEach((element, index) => {
+        textInput.style.boxSizing = "border-box";
+        element.addEventListener("click", event => {
+            if (index < 0 || index > textExamples.length)
+                index = 0;
+            textInput.value = textExamples[index];
+            textInput.style.height = "5px";
+            textInput.style.height = textInput.scrollHeight + 5 + "px";
+        });
+    });
+
+    authorInput.addEventListener("keyup", resetErrors);
+    textInput.addEventListener("keyup", resetErrors);
+    submitButton.addEventListener("click", resetErrors)
+
+    function resetErrors() {
+        spinner.style.display = "none";
+        errorMessage.style.display = "none";
+        disableInputs(false);
+    }
+
+    function submitForm() {
+        resultsContainer.style.display = "none";
+        spinner.style.display = "inline-block";
+        disableInputs(true);
+        window.scrollTo(0, document.body.scrollHeight);
+        fetch("/predict",
+            {
+                method: "POST",
+                body: JSON.stringify({author: authorInput.value, text: textInput.value}),
+                mode: "same-origin",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+            })
+            .catch(error => {
+                errorMessage.innerHTML = "Something went wrong &#9785; " + error.toString();
+                errorMessage.style.display = "inherit";
+                spinner.style.display = "none";
+                disableInputs(false);
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (checkError(result))
+                    return;
+
+                textInput.style.height = "0";
+                errorMessage.innerHTML = "Something went wrong! &#9785;";
+                spinner.style.display = "none";
+                adjacentList.innerHTML = "";
+                nonAdjacentList.innerHTML = "";
+                keywordList.innerHTML = "";
+                result.adjacent_authors.forEach(author => createLinkListElement(adjacentList, author))
+                result.non_adjacent_authors.forEach(author => createLinkListElement(nonAdjacentList, author))
+                result.keywords.forEach(keyword => createListElement(keywordList, keyword))
+                numNodesText.innerText = result.num_nodes;
+                numHopsText.innerText = result.num_hops;
+                spinner.style.display = "none";
+                resultsContainer.style.display = "initial";
+                window.scrollTo(0, document.body.scrollHeight);
+                disableInputs(false);
+            });
+
+        return false;
+    }
+
+    function disableInputs(status){
+        // authorInput.disabled = status;
+        // textInput.disabled = status;
+        submitButton.disabled = status;
+    }
+
+    function checkError(response) {
+        if (response.error) {
+            errorMessage.innerHTML = response.error;
+            errorMessage.style.display = "inherit";
+            spinner.style.display = "none";
+            disableInputs(false);
+            return true;
+        }
+        return false;
+    }
+
+    function createLinkListElement(container, text) {
+        const a = document.createElement("a");
+        a.href = "/author/" + text;
+        const li = document.createElement("li");
+        li.innerText = text;
+        a.appendChild(li)
+        container.appendChild(a);
+    }
+
+    function createListElement(container, text) {
+        const li = document.createElement("li");
+        li.innerText = text;
+        container.appendChild(li);
+    }
+
+    function searchAuthors() {
+        const currentInput = authorInput.value;
+
+        if (!currentInput) {
+            searchResults.innerHTML = defaultSearchResults;
+            return;
+        }
+
+        if (authorSearchTimeout) {
+            return;
+        }
+        authorSearchTimeout = true;
+
+        fetch("/authors",
+            {
+                method: "POST",
+                body: JSON.stringify({search: currentInput}),
+                mode: "same-origin",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+            })
+            .catch(error => {
+                errorMessage.innerHTML = "Something went wrong! &#9785;" + error.toString();
+            })
+            .then(result => result.json())
+            .then(result => {
+                if (checkError(result))
+                    return;
+
+                searchResults.innerHTML = "";
+                result.authors.forEach(author => {
+                    const li = document.createElement("li");
+                    li.innerText = author;
+                    li.onclick = () => {
+                        setAuthor(author)
+                    };
+                    searchResults.appendChild(li);
+                })
+            })
+
+        setTimeout(() => {
+            authorSearchTimeout = false;
+            if (authorInput.value !== currentInput) {
+                searchAuthors();
+            }
+        }, t_timeout);
+    }
+
+    function setAuthor(author) {
+        authorInput.value = author;
+    }
+</script>
+</body>
+</html>
